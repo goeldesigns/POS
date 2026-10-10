@@ -21,7 +21,9 @@
     "db:studio": "prisma studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "video:tour": "tsx scripts/record-tour.ts"
+    "video:tour": "tsx scripts/record-tour.ts",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
