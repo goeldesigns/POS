@@ -1,0 +1,123 @@
+# Tabla — multi-tenant restaurant POS
+
+Next.js 16 (App Router, React 19, TypeScript strict) · Prisma 7 + PostgreSQL · Tailwind CSS 4 · Radix UI · Recharts · Zod · React Hook Form · TanStack Query.
+
+A public **landing page** (`/`) plus two apps on one backend: the **restaurant workspace** (`/app`) and the **Super Admin console** (`/super-admin`). `npm run typecheck`, `npm test` (73 tests) and `npm run build` all pass.
+
+## Quick start (development)
+
+```bash
+npm install
+cp .env.example .env            # then set ENCRYPTION_KEY and CRON_SECRET
+npm run db:local                # embedded PostgreSQL on :5433 (no Docker/Postgres install needed) — keep running
+npx prisma migrate deploy
+npm run db:seed
+npm run dev                     # http://localhost:3000
+```
+
+`npm run db:reset` drops and reseeds the dev database (Prisma will ask for confirmation).
+`npx tsx scripts/sync-demo-menu.ts` re-applies demo menu photos/names without reseeding.
+
+### Demo credentials (development only)
+
+| Who | URL | Email | Password |
+|---|---|---|---|
+| Super Admin | `/` → Sign in, or `/super-admin/login` | admin@tabla.dev | Admin@12345 |
+| Owner · Spice & Stone (Enterprise) | `/` → Sign in, or `/auth/login` | owner@spiceandstone.demo | Demo@1234 |
+| Manager (2 restaurants → switcher) | | manager@spiceandstone.demo | Demo@1234 |
+| Cashier (no inventory permission) | | cashier@spiceandstone.demo | Demo@1234 |
+| Waiter / Kitchen / Accounts / Inventory | | waiter@ · kitchen@ · accounts@ · inventory@spiceandstone.demo | Demo@1234 |
+| Café owner · The Brew Room (Professional) | | owner@brewroom.demo | Demo@1234 |
+| Starter plan · Coastal Curry Co. | | owner@coastalcurry.demo | Demo@1234 |
+
+Seed: 5 tenants (one suspended, one on trial), ~7,000 orders over 90 days, menus with photos, recipes, 58 ingredients, suppliers, purchases, stock ledger, reservations, staff attendance/shifts, expenses, loyalty accounts, coupons, audit trail. Today's live service (open tables, kitchen tickets) is created through the real order service.
+
+## Landing page (`/`)
+
+Built from real screenshots of the product, in the POS theme (brand purple, the five chart accents and the console's night tone).
+
+- **Sections**: hero with a live event feed over the POS, capability marquee, feature tabs (Billing, Kitchen, Tables, Recipes, Inventory, Reports), back-office grid, product facts, how it works, security, pricing, demo booking, FAQ, final call to action.
+- **One sign-in**: "Sign in" opens a panel on the page (also `/?signin=1`). Restaurant staff go to their POS (or the restaurant picker if they work at several); platform administrators go to the console. `/auth/login` uses the same routing; `/super-admin/login` still works. The landing page never looks at who is signed in: "Log in to POS" always asks for an email and password, then opens that person's own restaurant (or the console for platform admins). `/auth/login` also always shows the form.
+- **Pricing** reads active, public plans from the database — edit a plan in the console and the page follows. The plan for new sign-ups (Settings) gets the "Start free trial" button when self sign-up is on.
+- **Book a demo**: pick a date and an IST slot (Mon–Sat, 10:00–18:30, 30 min, two parallel demos per slot, 2 h lead time, 30 days ahead — see `src/lib/demo.ts`), then details. The server re-checks every rule, rate-limits by IP, ignores honeypot submissions, prevents double-booking the same email, and emails a confirmation (console transport in development) plus a note to support. Visitors can add the slot to their calendar (.ics).
+- **Motion**: scroll reveals (rise, slide, scale, blur, clip-wipe, tilt), scroll-linked hero tilt, rotating words, marquee, auto-advancing tabs with progress, receipt printing, ticket queue, popping checkmarks, growing bars, draining stock, count-ups, a drawn connector line, an animated pricing switch, accordion and a drawn success tick. Everything respects "reduce motion".
+- **Screenshots** live in `public/landing/`. Refresh them after UI changes, with the dev server running: `npx tsx scripts/capture-landing-shots.ts` (local Chrome/Edge in headless mode with a temporary profile and a short-lived demo session; live timers are pinned so older demo data still looks like a live service).
+- **Product tour video** (`public/landing/tour.mp4`, about 6 minutes, 1080p with captions, background music and soft click/typing sounds) plays in the "Product tour" section with a chapter list that jumps through the video. Re-record it after UI changes: `npm run build`, then `npm run video:tour`. The script reseeds a separate `tabla_video` database (your dev data is untouched), serves the production build from it on port 3100, drives headless Chrome/Edge through every module with a visible cursor and captions, and encodes the result with ffmpeg. It also writes the poster and `src/components/landing/tour-chapters.ts`. Edit the steps and captions in `scripts/record-tour.ts`. The music is an original track generated by `scripts/tour-audio.ts` (nothing to license); `npm run video:tour -- --audio-only` redoes just the soundtrack in seconds, and `--music=path/to/track.mp3` puts your own licensed track under the UI sounds instead (volume via `TOUR_MUSIC_VOLUME`, default 0.3).
+- Copy such as the demo agenda, support hours and FAQ answers lives in `src/app/page.tsx` and `src/components/landing/` — adjust it to how your team works.
+
+## Restaurant workspace (`/app`)
+
+- **Auth**: email/password (bcrypt), DB-backed hashed session tokens in httpOnly cookies, signup (creates a tenant), forgot/reset password (link printed to server console), restaurant switcher, rate-limited login.
+- **Permissions**: module × action catalogue (`src/lib/permissions/catalog.ts`), roles + per-user GRANT/DENY overrides, modules switched per restaurant/plan. `can(subject, "orders.create")` everywhere; sidebar is generated from permissions; every page, server action and API route re-checks on the server.
+- **Tenant isolation**: every tenant model has `restaurantId`; tenant code uses `tenantDb(restaurantId)` (Prisma extension that injects the tenant filter into every query and stamps it on every create).
+- **Modules**: Overview dashboard (period comparisons), **POS** (categories, search, variants/modifiers, table picker, customers, discount/coupon/loyalty, KOT, drafts, split payments, UPI QR, receipts, keyboard shortcuts F2/F4/F6/F7/F8, +/−/Del), Orders (status tabs, drawer, refund/cancel/reorder, kitchen board), Tables (floor plan, merge/split/transfer, drag to arrange), Reservations (calendar + list), Menu (items, categories, modifier groups, combos, product editor), Customers (profiles, CSV import/export), Reports (13 reports, CSV + print-to-PDF), Expenses, Staff (attendance with per-person month/date-range view and PDF statements, monthly team sheet PDF, shifts, performance, activity), Recipes (live costing), Inventory (stock, purchases/receiving, suppliers, ledger, waste), Swiggy & Zomato (encrypted credentials, signed webhook, sandbox order), Loyalty, Settings (19 sections incl. users & roles with a permission matrix, coupons, API keys, sessions, subscription).
+- **Order pipeline** (`src/server/services/orders.ts`): one path for POS, website (`POST /api/v1/orders` with API key), and aggregators. Server re-prices from the DB; completion deducts recipe ingredients, awards loyalty, updates customer stats and frees the table.
+- **Order flow**: food status and payment are tracked separately. **Paying sends an order to the kitchen** (takeaway, delivery and online have no separate "send to kitchen" step). The kitchen board — no prices, no payment details — takes it New → Preparing → Ready → **Complete**. A paid order closes on Complete. **Dine-in can also order first and pay after the meal** ("Send to kitchen · pay later"): Complete then leaves it **Served · bill open** on the table until the bill is settled. More items for a served table go back on the board, with the new lines marked *Added* and earlier ones *served*. A table that paid up front stays occupied after Complete (guests are still eating). Kitchen-only roles see just the board. Counters without a kitchen screen can switch paid orders to close straight away in Settings → Kitchen.
+- **Printing**: `/print/receipt/[id]`, `/print/kot/[id]` (80/58 mm thermal CSS), `/print/report/[key]` (A4).
+- **Announcements**: a banner set by the Super Admin (Settings → Announcement) shows at the top of every workspace.
+
+## Super Admin console (`/super-admin`)
+
+Separate session cookie and login (`/super-admin/login`), dark sidebar so it's never confused with a restaurant workspace. Every change is written to the audit log.
+
+- **Dashboard**: restaurants (active/suspended/trial), GMV and platform orders with period comparison, MRR/ARR and past-due revenue, new restaurants/users this month, GMV trend, cumulative growth, subscriptions by plan, "needs attention" (overdue, trials ending, suspended), top restaurants, recent registrations, platform activity. Period filter: Today / 7D / 30D / 3M / 12M / Custom.
+- **Restaurants**: searchable, sortable, paginated table (name, owner, email, phone, plan, users, orders, status, created, last active) with status/plan/billing filters. **Add restaurant** creates the whole tenant in one transaction (roles, owner login, tables, tax, subscription, modules — plan defaults or overrides). Detail tabs:
+  - *Overview* — 30-day sales/orders/AOV, profile, owners, recent activity
+  - *Users* — add users (role + optional custom matrix), change role/status, edit permissions, reset password, remove
+  - *Permissions* — switch modules on/off per restaurant (overrides the plan; blocks pages, nav and API even for owners) and a per-person permission matrix
+  - *Subscription* — plan, status, interval, period end, optional "reset modules to plan", seat warnings
+  - *Usage* — seats/tables/menu items vs plan limits, daily orders, channels
+  - *Activity* — the restaurant's audit trail (console and in-restaurant actions)
+  - *Settings* — edit profile; danger zone: suspend (reason required), re-activate, archive (type the name; signs everyone out, revokes API keys, data kept) and restore
+- **Demo requests**: everything booked from the landing page, with a badge for new requests and entries on the dashboard. Filter by status (upcoming, new, confirmed, completed, no-show, cancelled) or date; open one to confirm, reschedule (any time — admins own the calendar), change duration, assign an owner, add a meeting link and internal notes, edit the lead's details, optionally email the customer about the change, delete spam, or **create the restaurant** pre-filled from the request (the demo is then marked completed and linked to the new customer).
+- **Users**: everyone with a login across restaurants; add a user to any restaurant; disable/re-enable sign-in globally.
+- **Plans**: pricing, trial, limits, included modules and feature flags; create, edit, retire, delete (only when unused and not the default).
+- **Analytics**: GMV trend, channels, order types, top-10 leaderboard with share, module adoption, sign-ups, revenue by plan.
+- **Audit logs**: console + restaurant events, filters (scope, restaurant, action, actor, date range), detail drawer with IP, device and metadata.
+- **Settings**: platform name, support contacts, self-signup on/off, default plan for sign-ups, announcement banner. **Profile**: name, phone, password.
+
+Billing providers (Stripe/Razorpay) aren't connected; subscriptions are managed manually in the console and the provider fields are ready on the `Subscription` model.
+
+## Tests
+
+```bash
+npm test
+```
+
+Vitest runs against `TEST_DATABASE_URL` (the `tabla_test` database created by `npm run db:local`) and refuses to start if it's missing or the same as `DATABASE_URL`. A global setup runs `prisma migrate deploy` (non-destructive); each test file creates uniquely named data and deletes it afterwards.
+
+| File | Covers |
+|---|---|
+| `tests/tenant-isolation.test.ts` | Restaurant A can't read, update, delete or create into B through `tenantDb`, services (orders, selling B's product) or the API; sessions pointed at another tenant resolve to nothing |
+| `tests/permissions.test.ts` | Cashier without inventory: nav hidden, page guard redirects to `/app/no-access`, `GET /api/v1/inventory` and the stock-movement API/action/service all reject; per-user grants/revokes; privilege-escalation guard; CSRF on cookie writes; module switched off blocks even owners; suspended restaurant has no permissions |
+| `tests/order-flow.test.ts` | POS checkout → completion → recipe stock deduction, cash change, loyalty (welcome bonus, earn, redeem, limits; refunds return redeemed points and take back earned ones — never below zero — with lifetime counters kept in step), customer stats, split payment on a dine-in table, prepaid Swiggy order deducts only on completion, kitchen staff can't take payments |
+| `tests/attendance.test.ts` | Attendance statements by month or date range (capped at 366 days), payable days counting half days as ½, unmarked days only after joining, shifts past midnight, and the monthly team sheet |
+| `tests/kitchen-flow.test.ts` | Paying sends counter orders to the kitchen instead of closing them; kitchen tickets carry no prices; dine-in pay-after-meal goes Served → Completed on payment and frees the table; extra items for a served table return to the board marked added/served; prepaid tables keep their table after Complete; the no-kitchen-screen setting still closes paid orders at once |
+| `tests/operations.test.ts` | Table merges move at most one open order (and move nothing when refused), only owners can edit the owner's staff record or give the Owner title, CSV exports use the restaurant's clock and keep negative amounts numeric while neutralising formulas, kitchen-only roles land on the ticket board |
+| `tests/demos.test.ts` | Demo slots in IST (Sundays closed, window, lead time), capacity per slot, no double-booking, server-side validation and the honeypot, console reschedule/confirm/status with audit, demo → restaurant conversion; one sign-in routing staff to the POS and admins to the console, with identical errors for bad passwords |
+| `tests/restaurant-onboarding.test.ts` | Tenant creation (settings, tax, 7 roles, owner login, modules, trial, tables, loyalty, integrations), unique slugs, core modules forced on, duplicate login email rolls back; Super Admin actions: auth required, server-side validation, create + audit, module switches, suspend/activate, plan downgrade with seat warning and seat limit, archive/restore |
+
+## API
+
+All routes use the `{ data }` / `{ error: { code, message } }` envelope and accept the session cookie or `Authorization: Bearer tbl_live_…` (scoped API keys, Enterprise plan).
+
+- `GET/POST /api/v1/orders`, `GET /api/v1/orders/{id}` — unified order pipeline
+- `GET /api/v1/inventory` (`inventory.view`), `POST /api/v1/inventory/movements` (stock in / count / transfer)
+- `GET /api/v1/menu`, `GET /api/v1/customers/search`, `GET /api/v1/customers/export`, `GET /api/v1/reports/{key}/export`, `GET /api/v1/search`, `GET /api/v1/notifications`, `POST /api/v1/uploads`
+- `POST /api/v1/integrations/{swiggy|zomato}/webhook?restaurant={slug}` with header `X-Tabla-Signature: hex(HMAC-SHA256(rawBody, webhookSecret))`. Body: the Tabla aggregator envelope (`src/server/integrations/types.ts`). Partner-specific mappers are stubs until partner API access exists; status never shows "Connected" without a real handshake.
+
+## Layout
+
+```
+prisma/            schema.prisma, migrations, seed.ts + seed/ (demo data)
+scripts/           local-postgres.ts, sync-demo-menu.ts, capture-landing-shots.ts, record-tour.ts
+src/lib/           permissions, pricing engine, units, formatting, Zod schemas (shared client/server)
+src/server/        db, tenant-db, auth (sessions, context, guards), action/API wrappers, services/, integrations/
+src/components/    ui/ primitives, shell/, charts/, admin/ (console), landing/, feature components
+src/app/           page.tsx (landing), auth/, app/ (restaurant), super-admin/ (console), print/, api/v1/
+tests/             Vitest suites + helpers (run against tabla_test)
+```
+
+## Out of scope (by design)
+
+Online ordering for diners, live Swiggy/Zomato partner APIs and an online payment gateway. The order API, API keys and subscription provider fields are in place for them.

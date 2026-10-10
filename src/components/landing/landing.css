@@ -1,0 +1,203 @@
+/* ─────────────────────────────────────────────────────────────
+   Landing page motion. Every effect is opt-in per element and
+   disabled for people who prefer reduced motion.
+   ───────────────────────────────────────────────────────────── */
+
+/* In the components layer so Tailwind utilities (e.g. `hidden lg:grid`) still win. */
+@layer components {
+  html:has(.lp-root) { scroll-behavior: smooth; }
+
+  /* Scroll reveals ─ set by <Reveal>, which adds [data-in] once on screen. */
+  .lp-reveal {
+    --lp-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition:
+      opacity 700ms var(--lp-ease),
+      transform 800ms var(--lp-ease),
+      filter 800ms var(--lp-ease),
+      clip-path 900ms var(--lp-ease);
+    transition-delay: var(--lp-delay, 0ms);
+    will-change: opacity, transform;
+  }
+  .lp-reveal:not([data-in]) { opacity: 0; }
+  .lp-reveal[data-anim="up"]:not([data-in]) { transform: translateY(28px); }
+  .lp-reveal[data-anim="down"]:not([data-in]) { transform: translateY(-20px); }
+  .lp-reveal[data-anim="left"]:not([data-in]) { transform: translateX(-40px); }
+  .lp-reveal[data-anim="right"]:not([data-in]) { transform: translateX(40px); }
+  .lp-reveal[data-anim="scale"]:not([data-in]) { transform: scale(0.94); }
+  .lp-reveal[data-anim="blur"]:not([data-in]) { filter: blur(10px); transform: translateY(10px); }
+  .lp-reveal[data-anim="tilt"]:not([data-in]) { transform: perspective(1200px) rotateX(14deg) translateY(40px); transform-origin: 50% 100%; }
+  /* The wipe is applied to the child: a clipped target would never count as
+     visible to IntersectionObserver. */
+  .lp-reveal[data-anim="clip"]:not([data-in]) { opacity: 1; }
+  .lp-reveal[data-anim="clip"] > * { clip-path: inset(0 0 0 0 round 16px); transition: clip-path 1000ms var(--lp-ease) var(--lp-delay, 0ms); }
+  .lp-reveal[data-anim="clip"]:not([data-in]) > * { clip-path: inset(0 0 100% 0 round 16px); }
+  .lp-reveal[data-anim="fade"]:not([data-in]) { transform: none; }
+
+  /* Pause looping effects until their section is visible. */
+  .lp-loop:not([data-in]) *,
+  .lp-loop:not([data-in]) { animation-play-state: paused !important; }
+
+  /* Hero entrance (on load, not scroll) */
+  @keyframes lp-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  .lp-rise { animation: lp-rise 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: var(--lp-delay, 0ms); }
+
+  @keyframes lp-frame-in {
+    from { opacity: 0; transform: perspective(1600px) rotateX(18deg) translateY(60px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  .lp-frame-in { animation: lp-frame-in 1300ms cubic-bezier(0.16, 0.8, 0.2, 1) 250ms both; }
+
+  /* Gentle bobbing for floating UI chips */
+  @keyframes lp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  .lp-float { animation: lp-float 6s ease-in-out infinite; animation-delay: var(--lp-delay, 0ms); }
+
+  /* Live event card entering the stack */
+  @keyframes lp-ticket-in {
+    0% { opacity: 0; transform: translateY(-14px) scale(0.92); }
+    60% { opacity: 1; transform: translateY(2px) scale(1.02); }
+    100% { opacity: 1; transform: none; }
+  }
+  .lp-ticket-in { animation: lp-ticket-in 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+  /* Rotating word */
+  .lp-word { transition: transform 600ms cubic-bezier(0.7, 0, 0.2, 1), opacity 400ms ease; }
+
+  /* Infinite marquee (content is duplicated once) */
+  @keyframes lp-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .lp-marquee { animation: lp-marquee var(--lp-speed, 40s) linear infinite; width: max-content; }
+  .lp-marquee[data-reverse] { animation-direction: reverse; }
+  .lp-marquee-mask { mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+  .lp-marquee-mask:hover .lp-marquee { animation-play-state: paused; }
+
+  /* Feature tab progress */
+  @keyframes lp-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .lp-progress { transform-origin: left; animation: lp-progress var(--lp-duration, 7000ms) linear both; }
+  .lp-progress[data-paused] { animation-play-state: paused; }
+
+  /* Screenshot crossfade with a slow push-in */
+  @keyframes lp-push { from { transform: scale(1.04); } to { transform: scale(1); } }
+  @keyframes lp-fade { from { opacity: 0; } to { opacity: 1; } }
+  .lp-shot-enter { animation: lp-fade 500ms ease-out both, lp-push 1600ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+  /* Thermal receipt printing */
+  @keyframes lp-print {
+    0%, 8% { transform: translateY(-100%); }
+    55%, 88% { transform: translateY(0); }
+    100% { transform: translateY(0); opacity: 0; }
+  }
+  .lp-print { animation: lp-print 5.5s cubic-bezier(0.45, 0, 0.3, 1) infinite; }
+
+  /* Bars growing from the baseline */
+  @keyframes lp-grow { from { transform: scaleY(0.05); } to { transform: scaleY(1); } }
+  .lp-bar { transform-origin: bottom; animation: lp-grow 1100ms cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: var(--lp-delay, 0ms); }
+
+  /* Checkmarks popping in */
+  @keyframes lp-pop { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.18); opacity: 1; } 100% { transform: scale(1); } }
+  .lp-pop { animation: lp-pop 480ms cubic-bezier(0.2, 0.8, 0.2, 1.2) both; animation-delay: var(--lp-delay, 0ms); }
+
+  /* Stock level drains during service, then a delivery tops it up */
+  @keyframes lp-drain { 0% { width: 82%; } 70% { width: 18%; } 78% { width: 18%; } 86%, 100% { width: 82%; } }
+  .lp-drain { animation: lp-drain 7s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+  @keyframes lp-drain-color { 0%, 50% { background: var(--color-mint); } 60%, 78% { background: var(--color-saffron); } 86%, 100% { background: var(--color-mint); } }
+  .lp-drain-color { animation: lp-drain-color 7s linear infinite; }
+
+  /* "Live" pulse */
+  @keyframes lp-ping { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(2.6); opacity: 0; } }
+  .lp-ping { animation: lp-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+  /* Line drawing (SVG) once visible */
+  .lp-draw { stroke-dasharray: var(--lp-len, 1200); stroke-dashoffset: var(--lp-len, 1200); transition: stroke-dashoffset 2200ms cubic-bezier(0.4, 0, 0.2, 1) 200ms; }
+  [data-in] .lp-draw { stroke-dashoffset: 0; }
+
+  /* Success tick for the demo form */
+  @keyframes lp-tick { to { stroke-dashoffset: 0; } }
+  .lp-tick { stroke-dasharray: 36; stroke-dashoffset: 36; animation: lp-tick 600ms cubic-bezier(0.65, 0, 0.35, 1) 250ms forwards; }
+  @keyframes lp-burst { 0% { transform: scale(0.6); opacity: 0.6; } 100% { transform: scale(1.8); opacity: 0; } }
+  .lp-burst { animation: lp-burst 900ms ease-out 150ms both; }
+
+  /* Light sweep across call-to-action buttons */
+  @keyframes lp-sheen { 0% { transform: translateX(-120%) skewX(-18deg); } 60%, 100% { transform: translateX(260%) skewX(-18deg); } }
+  .lp-sheen { position: relative; overflow: hidden; isolation: isolate; }
+  .lp-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.35), transparent);
+    animation: lp-sheen 3.6s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* Slow drift for the background grid glow */
+  @keyframes lp-drift { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(3%, -4%, 0); } }
+  .lp-drift { animation: lp-drift 18s ease-in-out infinite; }
+
+  /* Spinning ring (decorative) */
+  @keyframes lp-spin { to { transform: rotate(360deg); } }
+  .lp-spin { animation: lp-spin 28s linear infinite; }
+
+  /* Card hover lift with a soft spotlight that follows the pointer */
+  .lp-lift { transition: transform 300ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 300ms ease, border-color 300ms ease; }
+  .lp-lift:hover { transform: translateY(-4px); box-shadow: 0 18px 40px -18px rgb(36 28 110 / 0.25); }
+  .lp-spot { position: relative; }
+  .lp-spot::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(420px circle at var(--lp-x, 50%) var(--lp-y, 0%), rgb(80 64 208 / 0.08), transparent 45%);
+    opacity: 0;
+    transition: opacity 300ms ease;
+    pointer-events: none;
+  }
+  .lp-spot:hover::before { opacity: 1; }
+
+  /* Pricing numbers sliding when switching monthly / yearly */
+  @keyframes lp-number-in { from { opacity: 0; transform: translateY(60%); } to { opacity: 1; transform: none; } }
+  .lp-number-in { animation: lp-number-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+  /* Accordion */
+  .lp-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 380ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+  .lp-collapse[data-open] { grid-template-rows: 1fr; }
+  .lp-collapse > * { overflow: hidden; }
+
+  /* Demo scheduler steps */
+  @keyframes lp-step-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+  .lp-step-in { animation: lp-step-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  /* Back-office demos: a ledger entry floating up, a cell pulse, a row flash, a filling shift bar, a toast. */
+  @keyframes lp-float-up {
+    0% { opacity: 0; transform: translateY(10px); }
+    14%, 72% { opacity: 1; transform: none; }
+    100% { opacity: 0; transform: translateY(-16px); }
+  }
+  .lp-float-up { animation: lp-float-up 2200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes lp-ring { 0% { box-shadow: 0 0 0 0 rgb(80 64 208 / 0.45); } 100% { box-shadow: 0 0 0 9px rgb(80 64 208 / 0); } }
+  .lp-ring { animation: lp-ring 900ms ease-out 2; }
+  @keyframes lp-flash { from { opacity: 1; } to { opacity: 0; } }
+  .lp-flash { animation: lp-flash 1400ms ease-out both; }
+  @keyframes lp-fill { from { transform: scaleX(0.08); } to { transform: scaleX(1); } }
+  .lp-fill { transform-origin: left; animation: lp-fill 9s linear infinite; }
+  @keyframes lp-toast { 0% { opacity: 0; transform: translateY(10px) scale(0.96); } 12%, 84% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(4px); } }
+  .lp-toast { animation: lp-toast 1700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+  @keyframes lp-stagger { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .lp-stagger > * { animation: lp-stagger 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .lp-stagger > *:nth-child(2) { animation-delay: 30ms; }
+  .lp-stagger > *:nth-child(3) { animation-delay: 60ms; }
+  .lp-stagger > *:nth-child(4) { animation-delay: 90ms; }
+  .lp-stagger > *:nth-child(5) { animation-delay: 120ms; }
+  .lp-stagger > *:nth-child(6) { animation-delay: 150ms; }
+  .lp-stagger > *:nth-child(n + 7) { animation-delay: 180ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html:has(.lp-root) { scroll-behavior: auto; }
+    .lp-reveal, .lp-reveal[data-anim="clip"] > * { transition: none !important; opacity: 1 !important; transform: none !important; filter: none !important; clip-path: none !important; }
+    .lp-rise, .lp-frame-in, .lp-float, .lp-ticket-in, .lp-marquee, .lp-progress, .lp-shot-enter, .lp-print, .lp-bar, .lp-pop,
+    .lp-drain, .lp-drain-color, .lp-ping, .lp-burst, .lp-drift, .lp-spin, .lp-number-in, .lp-step-in, .lp-stagger > *, .lp-sheen::after,
+    .lp-float-up, .lp-ring, .lp-flash, .lp-fill, .lp-toast {
+      animation: none !important;
+    }
+    .lp-draw, .lp-tick { stroke-dashoffset: 0 !important; transition: none !important; }
+    .lp-word, .lp-lift, .lp-collapse { transition: none !important; }
+  }
+}
