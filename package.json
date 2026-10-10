@@ -23,7 +23,7 @@
     "test:watch": "vitest",
     "video:tour": "tsx scripts/record-tour.ts",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build"
+    "vercel-build": "prisma generate && prisma migrate deploy && if [ \"$SEED_DEMO_DATA\" = \"true\" ]; then tsx prisma/seed.ts; fi && next build"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
