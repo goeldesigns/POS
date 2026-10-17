@@ -1,4 +1,4 @@
-import type { StockUnit } from "@/generated/prisma/enums";
+import type { StockUnit } from "@/lib/enums";
 
 export const STOCK_UNITS: StockUnit[] = ["KG", "G", "LTR", "ML", "PCS", "BOX", "PACK"];
 

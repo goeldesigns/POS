@@ -1,4 +1,4 @@
-import type { IntegrationProvider } from "@/generated/prisma/enums";
+import type { IntegrationProvider } from "@/lib/enums";
 import type { ServiceContext } from "../auth/load-context";
 import { backend } from "../backend/client";
 

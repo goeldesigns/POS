@@ -1,4 +1,4 @@
-import type { PurchaseStatus, StockTxnType, StockUnit } from "@/generated/prisma/enums";
+import type { PurchaseStatus, StockTxnType, StockUnit } from "@/lib/enums";
 import type { ServiceContext } from "../auth/load-context";
 import { backend, pick } from "../backend/client";
 import { parseListParams, type SearchParams } from "../list-params";
@@ -200,4 +200,15 @@ export async function receivePurchase(_ctx: ServiceContext, id: string) {
 
 export async function cancelPurchase(_ctx: ServiceContext, id: string) {
   await backend.post(`/api/v1/inventory/purchases/${id}/cancel`);
+}
+
+export async function listInventoryOptions(ctx: ServiceContext) {
+  const suppliers = (await listSuppliers(ctx)).filter((s) => s.isActive).map((s) => ({ id: s.id, name: s.name }));
+  const ingredients: { id: string; name: string; unit: StockUnit; costPerUnit: number; currentStock: number; supplierId: string | null }[] = [];
+  for (let page = 1; ; page++) {
+    const data = await backend.get<{ rows: IngredientRowWire[]; total: number }>("/api/v1/inventory", { page, pageSize: 100, sort: "name", dir: "asc" });
+    for (const i of data.rows) ingredients.push({ id: i.id, name: i.name, unit: i.unit, costPerUnit: i.costPerUnit, currentStock: i.currentStock, supplierId: i.supplier?.id ?? null });
+    if (ingredients.length >= data.total || data.rows.length === 0) break;
+  }
+  return { suppliers, ingredients };
 }

@@ -1,8 +1,7 @@
-import type { RestaurantStatus } from "@/generated/prisma/enums";
+import type { RestaurantStatus } from "@/lib/enums";
 import type { ModuleKey, PermissionKey } from "@/lib/permissions/catalog";
 import { AppError } from "../errors";
 import { backend } from "../backend/client";
-import { tenantDb, type TenantDb } from "../tenant-db";
 import type { RequestMeta } from "./session";
 
 export interface Actor {
@@ -13,7 +12,6 @@ export interface Actor {
 
 export interface ServiceContext {
   restaurantId: string;
-  db: TenantDb;
   actor: Actor;
   permissions: ReadonlySet<string> | "all";
   meta?: RequestMeta;
@@ -43,7 +41,7 @@ export interface RestaurantContext extends ServiceContext {
 
 export interface PlatformContext {
   kind: "platform";
-  user: { id: string; name: string; email: string; avatarUrl: string | null; platformRole: string };
+  user: { id: string; name: string; email: string; phone: string | null; avatarUrl: string | null; platformRole: string };
   actor: Actor;
   meta?: RequestMeta;
 }
@@ -81,7 +79,6 @@ export async function loadRestaurantContext(token: string | undefined | null, me
   return {
     kind: "restaurant",
     restaurantId: info.restaurant.id,
-    db: tenantDb(info.restaurant.id),
     actor: { userId: info.user.id, name: info.user.name, role: info.role.name },
     permissions: new Set(info.permissions as PermissionKey[]),
     meta,
@@ -99,17 +96,8 @@ export async function loadPlatformContext(token: string | undefined | null, meta
   if (!profile) return null;
   return {
     kind: "platform",
-    user: { id: profile.id, name: profile.name, email: profile.email, avatarUrl: null, platformRole: profile.platformRole },
+    user: { id: profile.id, name: profile.name, email: profile.email, phone: profile.phone, avatarUrl: null, platformRole: profile.platformRole },
     actor: { userId: profile.id, name: profile.name, role: "Super Admin" },
     meta,
-  };
-}
-
-export function systemContext(restaurantId: string, actorName = "System"): ServiceContext {
-  return {
-    restaurantId,
-    db: tenantDb(restaurantId),
-    actor: { userId: null, name: actorName, role: "System" },
-    permissions: "all",
   };
 }

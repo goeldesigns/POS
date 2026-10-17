@@ -17,7 +17,7 @@ import { toDateInputValue } from "@/lib/validation/helpers";
 import { ingredientSchema, INGREDIENT_CATEGORIES, purchaseSchema, supplierSchema, WASTE_REASONS } from "@/lib/validation/inventory";
 import { recordWasteAction, saveIngredientAction, savePurchaseAction, saveSupplierAction, stockMovementAction } from "@/server/actions/inventory";
 import type { IngredientRow, PurchaseRow, SupplierRow } from "@/server/services/inventory";
-import type { StockUnit } from "@/generated/prisma/enums";
+import type { StockUnit } from "@/lib/enums";
 
 export function IngredientDialog({
   open,

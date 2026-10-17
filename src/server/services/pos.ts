@@ -1,4 +1,4 @@
-import type { FoodType, OrderStatus, OrderType, TableStatus } from "@/generated/prisma/enums";
+import type { FoodType, OrderStatus, OrderType, TableStatus } from "@/lib/enums";
 import type { ServiceContext } from "../auth/load-context";
 import { backend } from "../backend/client";
 
@@ -95,4 +95,14 @@ export interface PosOrder {
 
 export async function getOrderForPos(_ctx: ServiceContext, orderId: string) {
   return backend.get<PosOrder>(`/api/v1/pos/orders/${orderId}`);
+}
+
+export async function getCouponByCode(_ctx: ServiceContext, code: string) {
+  return backend
+    .get<{ code: string; description: string | null; type: "PERCENT" | "FLAT"; value: number; maxAmount: number | null }>(`/api/v1/pos/coupons/${encodeURIComponent(code)}`)
+    .catch(() => null);
+}
+
+export async function getCustomerForPos(_ctx: ServiceContext, id: string) {
+  return backend.get<{ id: string; name: string; phone: string; loyaltyBalance: number }>(`/api/v1/pos/customers/${id}`).catch(() => null);
 }

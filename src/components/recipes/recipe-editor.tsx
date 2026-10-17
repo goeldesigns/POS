@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { recipeSchema } from "@/lib/validation/inventory";
 import { deleteRecipeAction, saveRecipeAction } from "@/server/actions/inventory";
 import type { getRecipeEditor } from "@/server/services/recipes";
-import type { StockUnit } from "@/generated/prisma/enums";
+import type { StockUnit } from "@/lib/enums";
 
 type Data = Awaited<ReturnType<typeof getRecipeEditor>>;
 

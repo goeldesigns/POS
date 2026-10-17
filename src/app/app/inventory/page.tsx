@@ -15,7 +15,7 @@ import { UNIT_LABELS } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/guards";
 import { param, type SearchParams } from "@/server/list-params";
-import { inventoryOverview, listIngredients, listMovements, listPurchases, listSuppliers, listWaste } from "@/server/services/inventory";
+import { inventoryOverview, listIngredients, listInventoryOptions, listMovements, listPurchases, listSuppliers, listWaste } from "@/server/services/inventory";
 
 export const metadata: Metadata = { title: "Inventory" };
 
@@ -24,10 +24,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const tab = param(sp, "tab") ?? "overview";
   const tz = ctx.restaurant.timezone;
-  const [suppliers, ingredientsLite] = await Promise.all([
-    ctx.db.supplier.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    ctx.db.ingredient.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, unit: true, costPerUnit: true, currentStock: true, supplierId: true } }),
-  ]);
+  const { suppliers, ingredients: ingredientsLite } = await listInventoryOptions(ctx);
 
   let body: React.ReactNode;
   if (tab === "stock") {

@@ -1,4 +1,4 @@
-import type { OrderStatus, ReservationStatus, TableStatus } from "@/generated/prisma/enums";
+import type { OrderStatus, ReservationStatus, TableStatus } from "@/lib/enums";
 import type { ServiceContext } from "../auth/load-context";
 import { backend } from "../backend/client";
 

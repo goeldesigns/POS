@@ -1,4 +1,4 @@
-import type { LoyaltyTxnType, OrderStatus, OrderType, PaymentStatus, ReservationStatus } from "@/generated/prisma/enums";
+import type { LoyaltyTxnType, OrderStatus, OrderType, PaymentStatus, ReservationStatus } from "@/lib/enums";
 import type { ServiceContext } from "../auth/load-context";
 import { backend, pick } from "../backend/client";
 import { parseListParams, type SearchParams } from "../list-params";

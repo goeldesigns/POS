@@ -1,4 +1,4 @@
-import type { StockUnit } from "@/generated/prisma/enums";
+import type { StockUnit } from "@/lib/enums";
 import { convertQuantity, unitsCompatible } from "./units";
 
 export interface CostLine {

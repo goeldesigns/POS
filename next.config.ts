@@ -12,7 +12,6 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   typedRoutes: false,
-  serverExternalPackages: ["@prisma/client", "pg", "bcryptjs"],
   // Server action arguments include passwords and payment details — never
   // print them to the terminal.
   logging: { serverFunctions: false },

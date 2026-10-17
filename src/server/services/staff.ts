@@ -1,4 +1,4 @@
-import type { AttendanceStatus } from "@/generated/prisma/enums";
+import type { AttendanceStatus } from "@/lib/enums";
 import type { ServiceContext } from "../auth/load-context";
 import { backend, pick } from "../backend/client";
 import { parseListParams, type SearchParams } from "../list-params";

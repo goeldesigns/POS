@@ -1,4 +1,4 @@
-import type { BillingInterval, SubscriptionStatus } from "@/generated/prisma/enums";
+import type { BillingInterval, SubscriptionStatus } from "@/lib/enums";
 import { PLATFORM_TZ } from "@/lib/admin";
 import type { ModuleKey } from "@/lib/permissions/catalog";
 import { backend, pick } from "../backend/client";

@@ -4,7 +4,7 @@ import { Page } from "@/components/shell/page";
 import { InlineAlert } from "@/components/ui/display";
 import { requirePagePermission } from "@/server/auth/guards";
 import { param, type SearchParams } from "@/server/list-params";
-import { getOrderForPos, getPosBootstrap, type PosOrder } from "@/server/services/pos";
+import { getCouponByCode, getCustomerForPos, getOrderForPos, getPosBootstrap, type PosOrder } from "@/server/services/pos";
 
 export const metadata: Metadata = { title: "POS" };
 
@@ -31,14 +31,12 @@ export default async function PosPage({ searchParams }: { searchParams: Promise<
   }
   let coupon = null;
   if (order?.couponCode) {
-    const c = await ctx.db.coupon.findFirst({ where: { code: order.couponCode } });
-    if (c) coupon = { code: c.code, description: c.description, type: c.type, value: c.value, maxAmount: c.maxDiscount };
+    coupon = await getCouponByCode(ctx, order.couponCode);
   }
 
   let initialCustomer = null;
   if (!order && customerId) {
-    const c = await ctx.db.customer.findFirst({ where: { id: customerId, deletedAt: null }, include: { loyalty: { select: { balance: true } } } });
-    if (c) initialCustomer = { id: c.id, name: c.name, phone: c.phone, loyaltyBalance: c.loyalty?.balance ?? 0 };
+    initialCustomer = await getCustomerForPos(ctx, customerId);
   }
 
   return (

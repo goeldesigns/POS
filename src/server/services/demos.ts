@@ -1,4 +1,4 @@
-import type { DemoStatus } from "@/generated/prisma/enums";
+import type { DemoStatus } from "@/lib/enums";
 import type { DemoDay } from "@/lib/demo";
 import { backend, pick } from "../backend/client";
 import type { PlatformContext } from "../auth/load-context";

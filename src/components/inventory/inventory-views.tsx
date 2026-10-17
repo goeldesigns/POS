@@ -15,7 +15,7 @@ import { UNIT_LABELS } from "@/lib/units";
 import { cn, pluralize } from "@/lib/utils";
 import { cancelPurchaseAction, deleteIngredientAction, deleteSupplierAction, receivePurchaseAction } from "@/server/actions/inventory";
 import type { IngredientRow, PurchaseRow, SupplierRow } from "@/server/services/inventory";
-import type { StockUnit } from "@/generated/prisma/enums";
+import type { StockUnit } from "@/lib/enums";
 import { IngredientDialog, MovementDialog, PurchaseDialog, SupplierDialog, WasteDialog } from "./inventory-dialogs";
 
 type IngredientLite = { id: string; name: string; unit: StockUnit; costPerUnit: number; currentStock: number; supplierId: string | null };
