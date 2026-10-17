@@ -32,7 +32,7 @@ export default async function KotPage({ params, searchParams }: { params: Promis
               {o.orderNumber} · {formatTime(o.placedAt ?? o.createdAt, r.timezone)}
               {o.source !== "POS" ? ` · ${ORDER_SOURCE_LABEL[o.source]}` : ""}
             </p>
-            {o.createdBy ? <p>By: {o.createdBy.name}{o.guests ? ` · Guests: ${o.guests}` : ""}</p> : null}
+            {o.createdBy ? <p>By: {o.createdBy}{o.guests ? ` · Guests: ${o.guests}` : ""}</p> : null}
             <div className="my-2 border-t border-dashed border-black" />
             <ul className="space-y-1.5">
               {items.map((i) => (

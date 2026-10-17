@@ -20,7 +20,7 @@ import { DEMO } from "@/lib/demo";
 import { formatNumber } from "@/lib/format";
 import { CORE_MODULES, MODULE_CATALOG, PLAN_FLAGS, isModuleKey, type ModuleKey, type PlanFlag } from "@/lib/permissions/catalog";
 import { demoAvailability } from "@/server/services/demos";
-import { getPlatformSettings, listPlans } from "@/server/services/platform";
+import { getPlatformSettings, listPublicPlans } from "@/server/services/platform";
 import inventoryShot from "../../public/landing/inventory.webp";
 import kitchenShot from "../../public/landing/kitchen.webp";
 import posShot from "../../public/landing/pos.webp";
@@ -153,7 +153,7 @@ export default async function LandingPage() {
   // Public page: it never looks at who is signed in. Entering a POS always goes through the login form.
   const [settings, plans, days] = await Promise.all([
     getPlatformSettings(),
-    listPlans(),
+    listPublicPlans(),
     demoAvailability(),
   ]);
 

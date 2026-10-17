@@ -44,7 +44,7 @@ export default async function ReceiptPage({ params, searchParams }: { params: Pr
           <span className="text-right">{formatTime(o.createdAt, tz)}</span>
           <span>{ORDER_TYPE_LABEL[o.type]}{o.table ? ` · ${o.table.name}` : ""}</span>
           <span className="text-right">{o.guests ? `Guests: ${o.guests}` : ""}</span>
-          {o.createdBy ? <span className="col-span-2">Served by: {o.createdBy.name}</span> : null}
+          {o.createdBy ? <span className="col-span-2">Served by: {o.createdBy}</span> : null}
           {o.customerName ? <span className="col-span-2">Customer: {o.customerName}{o.customerPhone ? ` (${o.customerPhone.slice(-4).padStart(o.customerPhone.length, "•")})` : ""}</span> : null}
         </div>
 

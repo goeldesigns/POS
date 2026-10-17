@@ -1,6 +1,6 @@
 import { CircleCheck, CircleMinus } from "lucide-react";
 import type { Metadata } from "next";
-import { headers, cookies } from "next/headers";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RolesSettings, UsersSettings } from "@/components/settings/access-settings";
@@ -10,12 +10,10 @@ import { Badge, Card, CardBody, CardHeader, DetailList, StatusBadge } from "@/co
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { SUBSCRIPTION_STATUS } from "@/lib/labels";
 import { MODULE_CATALOG, MODULE_KEYS, PLAN_FLAGS } from "@/lib/permissions/catalog";
-import { isSettingsSection, RESTAURANT_FIELD_SECTIONS } from "@/lib/validation/settings";
-import { prisma } from "@/server/db";
-import { hashToken } from "@/server/crypto";
+import { isSettingsSection } from "@/lib/validation/settings";
 import { requirePagePermission } from "@/server/auth/guards";
-import { SESSION_COOKIE } from "@/server/auth/session";
-import { listMembers, listRoles } from "@/server/services/members";
+import { customRolesAllowed, listMembers, listRoles } from "@/server/services/members";
+import { getSettingsValues, getSubscription, listApiKeys, listCoupons, listSessions, listTaxRates, securityLog } from "@/server/services/settings";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -25,27 +23,23 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
   const canEdit = ctx.permissions.has("settings.edit");
 
   if (isSettingsSection(section)) {
-    const values = RESTAURANT_FIELD_SECTIONS.includes(section)
-      ? await prisma.restaurant.findUniqueOrThrow({ where: { id: ctx.restaurantId } })
-      : await ctx.db.restaurantSettings.findUniqueOrThrow({ where: { restaurantId: ctx.restaurantId } });
-    const form = <SectionForm section={section} values={values as unknown as Record<string, unknown>} canEdit={canEdit} />;
+    const values = await getSettingsValues(ctx, section);
+    const form = <SectionForm section={section} values={values} canEdit={canEdit} />;
     if (section === "tax") {
-      const rates = await ctx.db.taxRate.findMany({ orderBy: { rate: "asc" }, include: { _count: { select: { products: true } } } });
+      const rates = await listTaxRates(ctx);
       return (
         <>
           {form}
-          <TaxRates rows={rates.map((t) => ({ id: t.id, name: t.name, rate: t.rate, isDefault: t.isDefault, isActive: t.isActive, products: t._count.products }))} />
+          <TaxRates rows={rates} />
         </>
       );
     }
     if (section === "security") {
-      const token = (await cookies()).get(SESSION_COOKIE.RESTAURANT)?.value;
-      const sessions = await prisma.session.findMany({ where: { userId: ctx.user.id, scope: "RESTAURANT", expiresAt: { gt: new Date() } }, orderBy: { lastSeenAt: "desc" }, take: 20 });
-      const logs = await ctx.db.auditLog.findMany({ where: { action: { in: ["user.login", "member.password_reset", "member.permissions_updated", "member.created", "member.removed", "settings.updated", "apikey.created", "apikey.revoked"] } }, orderBy: { createdAt: "desc" }, take: 25 });
+      const [sessions, logs] = await Promise.all([listSessions(ctx), securityLog(ctx)]);
       return (
         <>
           {form}
-          <SessionsCard sessions={sessions.map((s) => ({ id: s.id, userAgent: s.userAgent, ipAddress: s.ipAddress, lastSeenAt: s.lastSeenAt.toISOString(), current: !!token && s.tokenHash === hashToken(token) }))} />
+          <SessionsCard sessions={sessions} />
           <Card className="mt-4">
             <CardHeader title="Security log" description="Sign-ins and access changes in this restaurant" />
             <CardBody>
@@ -53,7 +47,7 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
                 {logs.map((l) => (
                   <li key={l.id} className="flex items-start justify-between gap-4 text-[13px]">
                     <span className="text-ink">{l.summary}</span>
-                    <span className="shrink-0 text-xs text-muted">{formatDateTime(l.createdAt, ctx.restaurant.timezone)}{l.ipAddress ? ` · ${l.ipAddress}` : ""}</span>
+                    <span className="shrink-0 text-xs text-muted">{formatDateTime(new Date(l.createdAt), ctx.restaurant.timezone)}{l.ipAddress ? ` · ${l.ipAddress}` : ""}</span>
                   </li>
                 ))}
               </ul>
@@ -68,57 +62,18 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
   switch (section) {
     case "users": {
       const [members, roles] = await Promise.all([listMembers(ctx), listRoles(ctx)]);
-      return (
-        <UsersSettings
-          enabledModules={[...ctx.modules]}
-          roles={roles.map((r) => ({ id: r.id, name: r.name, description: r.description, isOwner: r.isOwner, isSystem: r.isSystem, members: r._count.members, permissions: r.permissions.map((p) => p.permissionKey) }))}
-          members={members.map((m) => ({
-            id: m.id,
-            userId: m.userId,
-            name: m.user.name,
-            email: m.user.email,
-            phone: m.user.phone,
-            status: m.status,
-            lastLoginAt: m.user.lastLoginAt?.toISOString() ?? null,
-            role: m.role,
-            overrides: m.permissions as { permissionKey: string; effect: "GRANT" | "DENY" }[],
-          }))}
-        />
-      );
+      return <UsersSettings enabledModules={[...ctx.modules]} roles={roles} members={members} />;
     }
     case "roles": {
-      const roles = await listRoles(ctx);
-      return (
-        <RolesSettings
-          enabledModules={[...ctx.modules]}
-          customRolesAllowed={!ctx.plan || ctx.plan.flags.has("custom_roles")}
-          roles={roles.map((r) => ({ id: r.id, name: r.name, description: r.description, isOwner: r.isOwner, isSystem: r.isSystem, members: r._count.members, permissions: r.permissions.map((p) => p.permissionKey) }))}
-        />
-      );
+      const [roles, customAllowed] = await Promise.all([listRoles(ctx), customRolesAllowed(ctx)]);
+      return <RolesSettings enabledModules={[...ctx.modules]} customRolesAllowed={!ctx.plan || customAllowed} roles={roles} />;
     }
     case "coupons": {
-      const coupons = await ctx.db.coupon.findMany({ orderBy: [{ isActive: "desc" }, { createdAt: "desc" }] });
-      return (
-        <CouponsSettings
-          rows={coupons.map((c) => ({
-            id: c.id,
-            code: c.code,
-            description: c.description,
-            type: c.type,
-            value: c.value,
-            minOrder: c.minOrder,
-            maxDiscount: c.maxDiscount,
-            validFrom: c.validFrom?.toISOString() ?? null,
-            validTo: c.validTo?.toISOString() ?? null,
-            usageLimit: c.usageLimit,
-            usedCount: c.usedCount,
-            isActive: c.isActive,
-          }))}
-        />
-      );
+      const coupons = await listCoupons(ctx);
+      return <CouponsSettings rows={coupons} />;
     }
     case "integrations": {
-      const keys = await ctx.db.apiKey.findMany({ orderBy: { createdAt: "desc" } });
+      const keys = await listApiKeys(ctx);
       const h = await headers();
       const base = process.env.APP_URL ?? `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
       return (
@@ -126,7 +81,7 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
           <ApiKeys
             allowed={!!ctx.plan?.flags.has("api_access")}
             baseUrl={base}
-            rows={keys.map((k) => ({ id: k.id, name: k.name, prefix: k.prefix, scopes: k.scopes, lastUsedAt: k.lastUsedAt?.toISOString() ?? null, revokedAt: k.revokedAt?.toISOString() ?? null, createdAt: k.createdAt.toISOString() }))}
+            rows={keys.rows}
           />
           <Card className="p-5 text-[13px]">
             <p className="font-semibold text-ink">Aggregators</p>
@@ -144,24 +99,19 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
       );
     }
     case "subscription": {
-      const sub = await ctx.db.subscription.findFirst({ include: { plan: { include: { features: true } } } });
-      const [users, tables, products] = await Promise.all([ctx.db.restaurantUser.count(), ctx.db.diningTable.count(), ctx.db.product.count({ where: { deletedAt: null } })]);
+      const sub = await getSubscription(ctx).catch(() => null);
       if (!sub) return <Card className="p-6 text-[13px] text-muted">No subscription on file. Contact Tabla support.</Card>;
-      const usage = [
-        { label: "Users", used: users, limit: sub.plan.maxUsers },
-        { label: "Tables", used: tables, limit: sub.plan.maxTables },
-        { label: "Menu items", used: products, limit: sub.plan.maxProducts },
-      ];
+      const usage = sub.usage;
       return (
         <div className="space-y-4">
           <Card>
-            <CardHeader title={`${sub.plan.name} plan`} description={sub.plan.description ?? undefined} actions={<StatusBadge dict={SUBSCRIPTION_STATUS} value={sub.status} />} />
+            <CardHeader title={`${sub.plan} plan`} description={sub.description ?? undefined} actions={<StatusBadge dict={SUBSCRIPTION_STATUS} value={sub.status} />} />
             <CardBody>
               <DetailList
                 items={[
-                  { label: "Price", value: `${formatMoney(sub.priceOverride ?? (sub.billingInterval === "YEARLY" ? sub.plan.priceYearly : sub.plan.priceMonthly))} / ${sub.billingInterval === "YEARLY" ? "year" : "month"}` },
-                  { label: "Current period", value: `${formatDate(sub.currentPeriodStart, "UTC")} – ${formatDate(sub.currentPeriodEnd, "UTC")}` },
-                  { label: sub.status === "TRIALING" ? "Trial ends" : "Renews", value: formatDate(sub.trialEndsAt ?? sub.currentPeriodEnd, "UTC") },
+                  { label: "Price", value: `${formatMoney(sub.price)} / ${sub.billingInterval === "YEARLY" ? "year" : "month"}` },
+                  { label: "Current period", value: `${formatDate(new Date(sub.currentPeriodStart), "UTC")} – ${formatDate(new Date(sub.currentPeriodEnd), "UTC")}` },
+                  { label: sub.status === "TRIALING" ? "Trial ends" : "Renews", value: formatDate(new Date(sub.trialEndsAt ?? sub.currentPeriodEnd), "UTC") },
                   { label: "Billing", value: sub.provider ? sub.provider : "Invoiced by Tabla" },
                 ]}
               />
@@ -172,7 +122,7 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
             <CardHeader title="Usage" />
             <CardBody className="grid gap-4 sm:grid-cols-3">
               {usage.map((u) => (
-                <div key={u.label}>
+                <div key={u.key}>
                   <div className="mb-1 flex justify-between text-[13px]">
                     <span className="text-muted">{u.label}</span>
                     <span className="font-medium text-ink">{u.used}{u.limit ? ` / ${u.limit}` : " · unlimited"}</span>

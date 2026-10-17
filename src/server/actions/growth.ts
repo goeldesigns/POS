@@ -3,8 +3,7 @@
 import { z } from "zod";
 import { integrationCredentialsSchema, integrationSettingsSchema, loyaltyProgramSchema } from "@/lib/validation/inventory";
 import { restaurantAction } from "../action";
-import { assertPermission } from "../auth/guards-core";
-import { audit } from "../audit";
+import { backend } from "../backend/client";
 import {
   disconnectIntegration,
   importExternalOrder,
@@ -29,22 +28,15 @@ export const disconnectIntegrationAction = restaurantAction({ permission: ["swig
   disconnectIntegration(ctx, input.provider),
 );
 export const sandboxOrderAction = restaurantAction({ permission: ["swiggy.manage", "zomato.manage"], schema: providerSchema }, (input, ctx) => sendSandboxOrder(ctx, input.provider));
-export const acceptExternalOrderAction = restaurantAction({ permission: ["swiggy.manage", "zomato.manage"], schema: z.object({ id: z.string().min(1) }) }, async (input, ctx) => {
-  const ext = await ctx.db.externalOrder.findUnique({ where: { id: input.id } });
-  if (ext) assertPermission(ctx, ext.provider === "SWIGGY" ? "swiggy.manage" : "zomato.manage");
-  return importExternalOrder(ctx, input.id);
-});
+export const acceptExternalOrderAction = restaurantAction({ permission: ["swiggy.manage", "zomato.manage"], schema: z.object({ id: z.string().min(1) }) }, (input, ctx) =>
+  importExternalOrder(ctx, input.id),
+);
 export const rejectExternalOrderAction = restaurantAction(
   { permission: ["swiggy.manage", "zomato.manage"], schema: z.object({ id: z.string().min(1), reason: z.string().trim().min(1).max(200) }) },
   (input, ctx) => rejectExternalOrder(ctx, input.id, input.reason),
 );
 
-export const saveLoyaltyProgramAction = restaurantAction({ permission: "loyalty.manage", schema: loyaltyProgramSchema }, async (input, ctx) => {
-  await ctx.db.loyaltyProgram.upsert({
-    where: { restaurantId: ctx.restaurantId },
-    create: { restaurantId: ctx.restaurantId, ...input },
-    update: input,
-  });
-  await audit(ctx, { action: "loyalty.program_updated", entity: "LoyaltyProgram", summary: `${ctx.actor.name} updated the loyalty programme (${input.pointsPerHundred} pts per ₹100)` });
+export const saveLoyaltyProgramAction = restaurantAction({ permission: "loyalty.manage", schema: loyaltyProgramSchema }, async (input) => {
+  await backend.put("/api/v1/loyalty/program", input);
 });
 export const runLoyaltyMaintenanceAction = restaurantAction({ permission: "loyalty.manage", schema: z.object({}) }, (_input, ctx) => runLoyaltyMaintenance(ctx));
