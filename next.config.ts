@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
 
-const BACKEND_URL = (process.env.BACKEND_URL ?? "http://127.0.0.1:8081").replace(/\/$/, "");
-
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -27,7 +25,6 @@ const nextConfig: NextConfig = {
     return [
       // Browsers and crawlers still ask for /favicon.ico; serve the app icon.
       { source: "/favicon.ico", destination: "/icon.svg" },
-      { source: "/api/v1/:path*", destination: `${BACKEND_URL}/api/v1/:path*` },
     ];
   },
 };
