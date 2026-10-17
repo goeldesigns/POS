@@ -36,7 +36,7 @@ import { recordPaymentAction } from "@/server/actions/pos";
 import type { OrderDetail } from "@/server/services/orders";
 import { CancelOrderDialog, RefundDialog } from "./order-dialogs";
 
-type Detail = Omit<OrderDetail, "items"> & { items: (OrderDetail["items"][number] & { modifiers: { id: string; name: string; price: number }[] })[] };
+type Detail = OrderDetail;
 
 const OPEN = ["DRAFT", "NEW", "PREPARING", "READY", "SERVED"];
 
@@ -185,7 +185,7 @@ export function OrderDrawer() {
                 </div>
                 <div className="text-right text-xs text-muted">
                   {o.guests ? <p>{pluralize(o.guests, "guest")}</p> : null}
-                  {o.createdBy ? <p>by {o.createdBy.name}</p> : null}
+                  {o.createdBy ? <p>by {o.createdBy}</p> : null}
                 </div>
               </section>
 

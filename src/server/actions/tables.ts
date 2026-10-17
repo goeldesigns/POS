@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { floorSchema, idSchema, mergeTablesSchema, tableIdSchema, tableSchema, tableStatusSchema, transferOrderSchema } from "@/lib/validation/operations";
 import { restaurantAction } from "../action";
-import { transferOrderTable } from "../services/orders";
+import { getOrderDetail, transferOrderTable } from "../services/orders";
 import { deleteFloor, deleteTable, mergeTables, reorderTables, saveFloor, saveTable, setTableStatus, splitTable } from "../services/tables";
 
 export const saveFloorAction = restaurantAction({ permission: "tables.edit", schema: floorSchema }, (input, ctx) => saveFloor(ctx, input));
@@ -16,8 +16,9 @@ export const mergeTablesAction = restaurantAction({ permission: "tables.assign_o
 );
 export const splitTableAction = restaurantAction({ permission: "tables.assign_orders", schema: tableIdSchema }, (input, ctx) => splitTable(ctx, input.tableId));
 export const transferOrderAction = restaurantAction({ permission: "tables.assign_orders", schema: transferOrderSchema }, async (input, ctx) => {
-  const o = await transferOrderTable(ctx, input.orderId, input.tableId);
-  return { orderNumber: o.orderNumber };
+  await transferOrderTable(ctx, input.orderId, input.tableId);
+  const { orderNumber } = await getOrderDetail(ctx, input.orderId);
+  return { orderNumber };
 });
 export const reorderTablesAction = restaurantAction(
   { permission: "tables.edit", schema: z.object({ ids: z.array(z.string()).min(1).max(300) }) },

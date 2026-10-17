@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/guards";
 import type { SearchParams } from "@/server/list-params";
 import { attendancePeriod, staffAttendanceReport, type DayState } from "@/server/services/attendance-reports";
+import { getAttendanceRegister } from "@/server/services/staff";
 import { zonedParts } from "@/server/time";
 
 export const metadata: Metadata = { title: "Attendance" };
@@ -44,7 +45,7 @@ export default async function StaffAttendancePage({ params, searchParams }: { pa
   const period = attendancePeriod(await searchParams, tz);
   const [report, team] = await Promise.all([
     staffAttendanceReport(ctx, id, period, tz).catch(() => null),
-    ctx.db.staffMember.findMany({ where: { status: { not: "INACTIVE" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    getAttendanceRegister(ctx, zonedParts(new Date(), tz).ymd).then((r) => r.rows.map((x) => ({ id: x.staffId, name: x.name }))),
   ]);
   if (!report) notFound();
   const { staff, days, totals } = report;

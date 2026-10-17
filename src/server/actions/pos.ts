@@ -1,13 +1,10 @@
 "use server";
 
 import { z } from "zod";
-import { formatMoney } from "@/lib/format";
 import { checkoutSchema, orderDraftSchema, recordPaymentSchema, sendReceiptSchema } from "@/lib/validation/operations";
 import { customerSchema } from "@/lib/validation/operations";
 import { restaurantAction } from "../action";
-import { audit } from "../audit";
-import { BusinessRuleError, NotFoundError } from "../errors";
-import { mailer } from "../mailer";
+import { backend } from "../backend/client";
 import { checkout, recordPayments, saveOrder } from "../services/orders";
 import { getOrderForPos } from "../services/pos";
 
@@ -58,58 +55,19 @@ export const loadOrderForPosAction = restaurantAction(
 
 export const previewCouponAction = restaurantAction(
   { permission: "pos.view", schema: z.object({ code: z.string().trim().min(2).max(30), subtotal: z.number().int().min(0) }), revalidate: false },
-  async (input, ctx) => {
-    const code = input.code.toUpperCase();
-    const coupon = await ctx.db.coupon.findFirst({ where: { code, isActive: true } });
-    const now = new Date();
-    if (!coupon) throw new BusinessRuleError(`Coupon ${code} is not valid`);
-    if (coupon.validFrom && coupon.validFrom > now) throw new BusinessRuleError(`Coupon ${code} isn't active yet`);
-    if (coupon.validTo && coupon.validTo < now) throw new BusinessRuleError(`Coupon ${code} has expired`);
-    if (coupon.usageLimit != null && coupon.usedCount >= coupon.usageLimit) throw new BusinessRuleError(`Coupon ${code} has reached its usage limit`);
-    if (coupon.minOrder != null && input.subtotal < coupon.minOrder) {
-      throw new BusinessRuleError(`${code} needs a minimum order of ${formatMoney(coupon.minOrder)}`);
-    }
-    return {
-      code: coupon.code,
-      description: coupon.description,
-      type: coupon.type,
-      value: coupon.value,
-      maxAmount: coupon.maxDiscount,
-    };
-  },
+  async (input) =>
+    backend.post<{ code: string; description: string | null; type: "PERCENT" | "FLAT"; value: number; maxAmount: number | null }>("/api/v1/pos/coupons/preview", input),
 );
 
 export const quickCreateCustomerAction = restaurantAction(
   { permission: ["customers.create", "pos.create_order"], schema: customerSchema.pick({ name: true, phone: true, email: true }) },
-  async (input, ctx) => {
-    const phone = input.phone.replace(/[^\d+]/g, "");
-    const existing = await ctx.db.customer.findFirst({ where: { phone }, include: { loyalty: { select: { balance: true } } } });
-    if (existing) {
-      return { id: existing.id, name: existing.name, phone: existing.phone, loyaltyBalance: existing.loyalty?.balance ?? 0, existed: true };
-    }
-    const customer = await ctx.db.customer.create({
-      data: { restaurantId: ctx.restaurantId, name: input.name, phone, email: input.email },
-    });
-    await audit(ctx, { action: "customer.created", entity: "Customer", entityId: customer.id, summary: `${ctx.actor.name} added customer ${customer.name} from POS` });
-    return { id: customer.id, name: customer.name, phone: customer.phone, loyaltyBalance: 0, existed: false };
-  },
+  async (input) => backend.post<{ id: string; name: string; phone: string; loyaltyBalance: number; existed: boolean }>("/api/v1/pos/customers", input),
 );
 
 export const sendReceiptAction = restaurantAction(
   { permission: ["pos.view", "orders.view"], schema: sendReceiptSchema, revalidate: false },
-  async (input, ctx) => {
-    const order = await ctx.db.order.findUnique({ where: { id: input.orderId }, include: { items: true } });
-    if (!order) throw new NotFoundError("Order");
-    const base = process.env.APP_URL ?? "http://localhost:3000";
-    const lines = order.items.map((i) => `${i.quantity} × ${i.name}${i.variantName ? ` (${i.variantName})` : ""}  ${formatMoney(i.lineTotal)}`);
-    await mailer.send({
-      to: input.email,
-      subject: `Your receipt from ${ctx.restaurant.name} · ${order.orderNumber}`,
-      text: [`Thank you for visiting ${ctx.restaurant.name}!`, "", ...lines, "", `Total: ${formatMoney(order.total)}`, "", `View receipt: ${base}/print/receipt/${order.id}`].join("\n"),
-    });
-    await ctx.db.orderEvent.create({
-      data: { restaurantId: ctx.restaurantId, orderId: order.id, type: "receipt", message: `Receipt emailed to ${input.email}`, actorName: ctx.actor.name },
-    });
+  async (input) => {
+    await backend.post(`/api/v1/orders/${input.orderId}/receipt`, { email: input.email });
     return { sent: true };
   },
 );

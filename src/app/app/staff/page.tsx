@@ -12,14 +12,10 @@ import { STAFF_STATUS } from "@/lib/labels";
 import { requirePagePermission } from "@/server/auth/guards";
 import { param, type SearchParams } from "@/server/list-params";
 import { listRoles } from "@/server/services/members";
-import { listStaff, nextEmployeeCode, staffActivity, staffPerformance, toDbDate } from "@/server/services/staff";
-import { resolvePeriod, zonedParts } from "@/server/time";
+import { getAttendanceRegister, getShiftPlan, listStaff, nextEmployeeCode, staffActivity, staffPerformance, toDbDate } from "@/server/services/staff";
+import { zonedParts } from "@/server/time";
 
 export const metadata: Metadata = { title: "Staff" };
-
-function hhmm(d: Date | null, tz: string) {
-  return d ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz }).format(d) : null;
-}
 
 export default async function StaffPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const ctx = await requirePagePermission("staff.view");
@@ -32,48 +28,14 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   let body: React.ReactNode = null;
   if (tab === "attendance") {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(param(sp, "date") ?? "") ? param(sp, "date")! : today;
-    const staff = await ctx.db.staffMember.findMany({
-      where: { status: { not: "INACTIVE" } },
-      orderBy: { name: "asc" },
-      include: { attendance: { where: { date: toDbDate(date) } } },
-    });
-    body = (
-      <AttendanceRegister
-        date={date}
-        rows={staff.map((s) => ({
-          staffId: s.id,
-          name: s.name,
-          roleTitle: s.roleTitle,
-          status: s.attendance[0]?.status ?? null,
-          clockIn: hhmm(s.attendance[0]?.clockIn ?? null, tz),
-          clockOut: hhmm(s.attendance[0]?.clockOut ?? null, tz),
-        }))}
-      />
-    );
+    const register = await getAttendanceRegister(ctx, date);
+    body = <AttendanceRegister date={date} rows={register.rows} />;
   } else if (tab === "shifts") {
-    const base = new Date(`${(/^\d{4}-\d{2}-\d{2}$/.test(param(sp, "week") ?? "") ? param(sp, "week")! : today)}T12:00:00Z`);
-    base.setUTCDate(base.getUTCDate() - ((base.getUTCDay() + 6) % 7));
-    const weekStart = base.toISOString().slice(0, 10);
-    const end = new Date(base);
-    end.setUTCDate(end.getUTCDate() + 7);
-    const [staff, shifts, settings] = await Promise.all([
-      ctx.db.staffMember.findMany({ where: { status: { not: "INACTIVE" } }, orderBy: { name: "asc" }, select: { id: true, name: true, roleTitle: true } }),
-      ctx.db.shift.findMany({ where: { date: { gte: toDbDate(weekStart), lt: toDbDate(end) } }, orderBy: { startTime: "asc" } }),
-      ctx.db.restaurantSettings.findUnique({ where: { restaurantId: ctx.restaurantId }, select: { kitchenStations: true } }),
-    ]);
-    body = (
-      <ShiftPlanner
-        weekStart={weekStart}
-        today={today}
-        staff={staff}
-        stations={settings?.kitchenStations ?? []}
-        shifts={shifts.map((s) => ({ id: s.id, staffId: s.staffId, date: s.date.toISOString().slice(0, 10), startTime: s.startTime, endTime: s.endTime, station: s.station }))}
-      />
-    );
+    const plan = await getShiftPlan(ctx, /^\d{4}-\d{2}-\d{2}$/.test(param(sp, "week") ?? "") ? param(sp, "week")! : today);
+    body = <ShiftPlanner weekStart={plan.weekStart} today={today} staff={plan.staff} stations={plan.stations} shifts={plan.shifts} />;
   } else if (tab === "performance") {
     const preset = (["7d", "30d", "90d"] as const).find((p) => p === param(sp, "period")) ?? "30d";
-    const range = resolvePeriod(preset, tz);
-    const rows = await staffPerformance(ctx, range.start, range.end);
+    const rows = await staffPerformance(ctx, preset);
     body = (
       <TableCard toolbar={<FilterSelect param="period" allLabel="Last 30 days" options={[{ value: "7d", label: "Last 7 days" }, { value: "90d", label: "Last 3 months" }]} />}>
         {rows.length ? (
@@ -107,10 +69,9 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       </TableCard>
     );
   } else if (tab === "activity") {
-    const members = await ctx.db.restaurantUser.findMany({ include: { user: { select: { id: true, name: true } } } });
-    const logs = await staffActivity(ctx, { userId: param(sp, "user"), take: 150 });
+    const { members, entries: logs } = await staffActivity(ctx, { userId: param(sp, "user") });
     body = (
-      <TableCard toolbar={<FilterSelect param="user" allLabel="Everyone" options={members.map((m) => ({ value: m.user.id, label: m.user.name }))} className="w-[180px]" />}>
+      <TableCard toolbar={<FilterSelect param="user" allLabel="Everyone" options={members.map((m) => ({ value: m.userId, label: m.name }))} className="w-[180px]" />}>
         {logs.length ? (
           <ul className="divide-y divide-line">
             {logs.map((l) => (

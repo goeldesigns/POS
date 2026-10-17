@@ -17,7 +17,8 @@ export const metadata: Metadata = { title: "Recipes" };
 
 export default async function RecipesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const ctx = await requirePagePermission("recipes.view");
-  const [data, categories] = await Promise.all([listRecipes(ctx, await searchParams), ctx.db.category.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true } })]);
+  const data = await listRecipes(ctx, await searchParams);
+  const { categories } = data;
   return (
     <Page>
       <PageHeader title="Recipes" description="Cost every dish, keep food cost on target, and deduct ingredients automatically on each sale." />

@@ -8,7 +8,7 @@ import { formatDate, formatDateTime, formatMoney, formatPhone } from "@/lib/form
 import { ATTENDANCE_STATUS, STAFF_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/guards";
-import { staffActivity, toDbDate } from "@/server/services/staff";
+import { getStaffProfile } from "@/server/services/staff";
 import { zonedParts } from "@/server/time";
 
 export const metadata: Metadata = { title: "Team member" };
@@ -22,23 +22,16 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
   const today = zonedParts(new Date(), tz).ymd;
   const from = new Date(`${today}T12:00:00Z`);
   from.setUTCDate(from.getUTCDate() - 29);
-  const s = await ctx.db.staffMember.findUnique({
-    where: { id },
-    include: {
-      restaurantUser: { include: { role: { select: { name: true } }, user: { select: { id: true, email: true, lastLoginAt: true } } } },
-      attendance: { where: { date: { gte: toDbDate(from) } }, orderBy: { date: "asc" } },
-      shifts: { where: { date: { gte: toDbDate(today) } }, orderBy: [{ date: "asc" }, { startTime: "asc" }], take: 14 },
-    },
-  });
+  const s = await getStaffProfile(ctx, id).catch(() => null);
   if (!s) notFound();
-  const activity = s.restaurantUser ? await staffActivity(ctx, { userId: s.restaurantUser.user.id, take: 30 }) : [];
-  const att = new Map(s.attendance.map((a) => [a.date.toISOString().slice(0, 10), a.status]));
+  const activity = s.activity;
+  const att = new Map(s.attendance.map((a) => [a.date, a.status]));
   const days = Array.from({ length: 30 }, (_, i) => {
     const d = new Date(from);
     d.setUTCDate(d.getUTCDate() + i);
     return d.toISOString().slice(0, 10);
   });
-  const present = s.attendance.filter((a) => a.status === "PRESENT" || a.status === "LATE").length;
+  const present = s.daysPresent;
 
   return (
     <Page>
@@ -105,7 +98,7 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
             </CardBody>
           </Card>
           <Card>
-            <CardHeader title="Recent activity" description={s.restaurantUser ? "Actions taken with their POS login" : "No POS login"} />
+            <CardHeader title="Recent activity" description={s.login ? "Actions taken with their POS login" : "No POS login"} />
             <CardBody>
               {activity.length ? (
                 <ul className="space-y-2.5">
@@ -126,11 +119,11 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
           <Card>
             <CardHeader title="POS login" />
             <CardBody className="text-[13px]">
-              {s.restaurantUser ? (
+              {s.login ? (
                 <div className="space-y-1.5">
-                  <p><Badge tone="brand">{s.restaurantUser.role.name}</Badge> <Badge tone={s.restaurantUser.status === "ACTIVE" ? "success" : "danger"}>{s.restaurantUser.status.toLowerCase()}</Badge></p>
-                  <p className="text-ink">{s.restaurantUser.user.email}</p>
-                  <p className="text-xs text-muted">Last sign-in: {s.restaurantUser.user.lastLoginAt ? formatDateTime(s.restaurantUser.user.lastLoginAt, tz) : "never"}</p>
+                  <p><Badge tone="brand">{s.login.role}</Badge> <Badge tone={s.login.status === "ACTIVE" ? "success" : "danger"}>{s.login.status.toLowerCase()}</Badge></p>
+                  <p className="text-ink">{s.login.email}</p>
+                  <p className="text-xs text-muted">Last sign-in: {s.login.lastLoginAt ? formatDateTime(s.login.lastLoginAt, tz) : "never"}</p>
                   {ctx.permissions.has("settings.edit") ? (
                     <Link href="/app/settings/users" className="text-xs font-medium text-brand-500">Manage role & permissions →</Link>
                   ) : null}
