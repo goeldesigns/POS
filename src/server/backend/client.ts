@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies, headers } from "next/headers";
 import { AppError } from "../errors";
+import { param, type SearchParams } from "../list-params";
 
 const BASE = (process.env.BACKEND_URL ?? "http://127.0.0.1:8081").replace(/\/$/, "");
 const SESSION_COOKIES = ["tabla_session", "tabla_admin_session"] as const;
@@ -104,4 +105,9 @@ export async function relaySessionCookies(response: Response) {
       ...(cookie.maxAge ? { maxAge: cookie.maxAge } : {}),
     });
   }
+}
+
+/** The listed search-param keys that are present, as an API query. */
+export function pick(sp: SearchParams, ...keys: string[]): Query {
+  return Object.fromEntries(keys.map((key) => [key, param(sp, key)]));
 }
