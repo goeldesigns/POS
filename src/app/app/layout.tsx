@@ -6,17 +6,23 @@ import { Button } from "@/components/ui/button";
 import { BRAND } from "@/config/brand";
 import { formatDate } from "@/lib/format";
 import { navFor } from "@/lib/nav";
-import { prisma } from "@/server/db";
+import { backend } from "@/server/backend/client";
 import { listMyRestaurants, logoutAction } from "@/server/actions/auth";
 import { requireRestaurantSession } from "@/server/auth/guards";
 import { RestaurantPicker } from "@/components/auth/restaurant-picker";
+
+interface Subscription {
+  plan: string;
+  status: string;
+  currentPeriodEnd: string;
+  usage: { key: string; used: number; limit: number | null }[];
+}
 
 export default async function RestaurantAppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireRestaurantSession();
   const restaurants = await listMyRestaurants();
 
   if (ctx.restaurant.status === "SUSPENDED") {
-    const r = await prisma.restaurant.findUnique({ where: { id: ctx.restaurantId }, select: { suspendReason: true, suspendedAt: true } });
     return (
       <div className="grid min-h-dvh place-items-center bg-canvas px-4">
         <div className="w-full max-w-[460px] rounded-2xl border border-line bg-surface p-7 shadow-card">
@@ -26,8 +32,8 @@ export default async function RestaurantAppLayout({ children }: { children: Reac
           </div>
           <h1 className="mt-4 text-lg font-semibold text-ink">This account is suspended</h1>
           <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
-            {ctx.restaurant.name} was suspended{r?.suspendedAt ? ` on ${formatDate(r.suspendedAt, ctx.restaurant.timezone)}` : ""}.
-            {r?.suspendReason ? ` Reason: ${r.suspendReason}.` : ""} Your data is safe. Contact {BRAND.supportEmail} to restore access.
+            {ctx.restaurant.name} was suspended{ctx.restaurant.suspendedAt ? ` on ${formatDate(ctx.restaurant.suspendedAt, ctx.restaurant.timezone)}` : ""}.
+            {ctx.restaurant.suspendReason ? ` Reason: ${ctx.restaurant.suspendReason}.` : ""} Your data is safe. Contact {BRAND.supportEmail} to restore access.
           </p>
           {restaurants.length > 1 ? <RestaurantPicker restaurants={restaurants.filter((x) => !x.current)} next="/app" /> : null}
           <form action={logoutAction} className="mt-6">
@@ -42,20 +48,18 @@ export default async function RestaurantAppLayout({ children }: { children: Reac
 
   let planCard: { plan: string; detail: string; usage?: string } | null = null;
   if (ctx.membership.isOwner || ctx.permissions.has("settings.edit")) {
-    const sub = await ctx.db.subscription.findFirst({ include: { plan: true } });
-    if (sub) {
-      const users = await ctx.db.restaurantUser.count();
-      const end = formatDate(sub.currentPeriodEnd, ctx.restaurant.timezone);
-      planCard = {
-        plan: sub.plan.name,
-        detail: sub.status === "TRIALING" ? `Trial ends ${end}` : sub.status === "PAST_DUE" ? "Payment overdue — update billing" : `Renews ${end}`,
-        usage: sub.plan.maxUsers ? `${users} of ${sub.plan.maxUsers} user seats used` : `${users} users · unlimited seats`,
-      };
-    }
+    const sub = await backend.get<Subscription>("/api/v1/settings/subscription");
+    const users = sub.usage.find((u) => u.key === "users");
+    const end = formatDate(new Date(sub.currentPeriodEnd), ctx.restaurant.timezone);
+    planCard = {
+      plan: sub.plan,
+      detail: sub.status === "TRIALING" ? `Trial ends ${end}` : sub.status === "PAST_DUE" ? "Payment overdue — update billing" : `Renews ${end}`,
+      usage: users?.limit ? `${users.used} of ${users.limit} user seats used` : `${users?.used ?? 0} users · unlimited seats`,
+    };
   }
 
-  const bannerRow = await prisma.platformSetting.findUnique({ where: { key: "maintenanceBanner" } });
-  const banner = typeof bannerRow?.value === "string" && bannerRow.value.trim() ? bannerRow.value.trim() : null;
+  const platform = await backend.get<{ maintenanceBanner: string }>("/api/v1/public/platform");
+  const banner = platform.maintenanceBanner.trim() || null;
 
   return (
     <SessionProvider

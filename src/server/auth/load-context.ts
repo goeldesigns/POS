@@ -1,9 +1,9 @@
 import type { RestaurantStatus } from "@/generated/prisma/enums";
-import { computeEffectivePermissions } from "@/lib/permissions/can";
-import { CORE_MODULES, isModuleKey, type ModuleKey, type PermissionKey } from "@/lib/permissions/catalog";
-import { prisma } from "../db";
+import type { ModuleKey, PermissionKey } from "@/lib/permissions/catalog";
+import { AppError } from "../errors";
+import { backend } from "../backend/client";
 import { tenantDb, type TenantDb } from "../tenant-db";
-import { findSession, type RequestMeta } from "./session";
+import type { RequestMeta } from "./session";
 
 export interface Actor {
   userId: string | null;
@@ -11,10 +11,6 @@ export interface Actor {
   role?: string | null;
 }
 
-/**
- * Minimal context every tenant service needs. `permissions: "all"` is used for
- * trusted system flows (aggregator webhooks, seed, background jobs).
- */
 export interface ServiceContext {
   restaurantId: string;
   db: TenantDb;
@@ -25,7 +21,6 @@ export interface ServiceContext {
 
 export interface RestaurantContext extends ServiceContext {
   kind: "restaurant";
-  sessionId: string;
   permissions: ReadonlySet<PermissionKey>;
   user: { id: string; name: string; email: string; phone: string | null; avatarUrl: string | null };
   restaurant: {
@@ -38,125 +33,78 @@ export interface RestaurantContext extends ServiceContext {
     locale: string;
     status: RestaurantStatus;
     logoUrl: string | null;
+    suspendedAt: Date | null;
+    suspendReason: string | null;
   };
-  membership: { id: string; roleId: string; roleName: string; isOwner: boolean };
+  membership: { roleName: string; isOwner: boolean };
   modules: ReadonlySet<ModuleKey>;
   plan: { key: string; name: string; flags: ReadonlySet<string> } | null;
 }
 
 export interface PlatformContext {
   kind: "platform";
-  sessionId: string;
   user: { id: string; name: string; email: string; avatarUrl: string | null; platformRole: string };
   actor: Actor;
   meta?: RequestMeta;
 }
 
-export async function loadRestaurantContext(
-  token: string | undefined | null,
-  meta?: RequestMeta,
-): Promise<RestaurantContext | null> {
-  const session = await findSession(token, "RESTAURANT");
-  if (!session?.restaurantId) return null;
+interface SessionInfo {
+  user: RestaurantContext["user"];
+  restaurant: Omit<RestaurantContext["restaurant"], "suspendedAt"> & { suspendedAt: string | null };
+  role: { name: string; isOwner: boolean };
+  modules: string[];
+  permissions: string[];
+  plan: { key: string; name: string; flags: string[] } | null;
+}
 
-  const membership = await prisma.restaurantUser.findUnique({
-    where: { restaurantId_userId: { restaurantId: session.restaurantId, userId: session.userId } },
-    include: {
-      role: { include: { permissions: { select: { permissionKey: true } } } },
-      permissions: { select: { permissionKey: true, effect: true } },
-      restaurant: {
-        include: {
-          modules: { where: { enabled: true }, select: { moduleKey: true } },
-          subscription: { include: { plan: { include: { features: true } } } },
-        },
-      },
-    },
-  });
-  if (!membership || membership.status !== "ACTIVE") return null;
+interface AdminProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  platformRole: string;
+}
 
-  const r = membership.restaurant;
-  if (r.status === "ARCHIVED" || r.deletedAt) return null;
+async function orNull<T>(load: () => Promise<T>): Promise<T | null> {
+  try {
+    return await load();
+  } catch (error) {
+    if (error instanceof AppError && error.status === 401) return null;
+    throw error;
+  }
+}
 
-  const enabledModules = new Set<ModuleKey>(CORE_MODULES);
-  for (const m of r.modules) if (isModuleKey(m.moduleKey)) enabledModules.add(m.moduleKey);
-
-  const permissions =
-    r.status === "SUSPENDED"
-      ? new Set<PermissionKey>()
-      : computeEffectivePermissions({
-          isOwner: membership.role.isOwner,
-          rolePermissions: membership.role.permissions.map((p) => p.permissionKey),
-          overrides: membership.permissions,
-          enabledModules: [...enabledModules],
-        });
-
-  const plan = r.subscription?.plan;
-
+export async function loadRestaurantContext(token: string | undefined | null, meta?: RequestMeta): Promise<RestaurantContext | null> {
+  if (!token) return null;
+  const info = await orNull(() => backend.get<SessionInfo>("/api/v1/auth/me"));
+  if (!info) return null;
   return {
     kind: "restaurant",
-    sessionId: session.id,
-    restaurantId: r.id,
-    db: tenantDb(r.id),
-    actor: { userId: session.user.id, name: session.user.name, role: membership.role.name },
-    permissions,
+    restaurantId: info.restaurant.id,
+    db: tenantDb(info.restaurant.id),
+    actor: { userId: info.user.id, name: info.user.name, role: info.role.name },
+    permissions: new Set(info.permissions as PermissionKey[]),
     meta,
-    user: {
-      id: session.user.id,
-      name: session.user.name,
-      email: session.user.email,
-      phone: session.user.phone,
-      avatarUrl: session.user.avatarUrl,
-    },
-    restaurant: {
-      id: r.id,
-      name: r.name,
-      slug: r.slug,
-      city: r.city,
-      currency: r.currency,
-      timezone: r.timezone,
-      locale: r.locale,
-      status: r.status,
-      logoUrl: r.logoUrl,
-    },
-    membership: {
-      id: membership.id,
-      roleId: membership.roleId,
-      roleName: membership.role.name,
-      isOwner: membership.role.isOwner,
-    },
-    modules: enabledModules,
-    plan: plan
-      ? {
-          key: plan.key,
-          name: plan.name,
-          flags: new Set(plan.features.filter((f) => f.enabled).map((f) => f.featureKey)),
-        }
-      : null,
+    user: info.user,
+    restaurant: { ...info.restaurant, suspendedAt: info.restaurant.suspendedAt ? new Date(info.restaurant.suspendedAt) : null },
+    membership: { roleName: info.role.name, isOwner: info.role.isOwner },
+    modules: new Set(info.modules as ModuleKey[]),
+    plan: info.plan ? { key: info.plan.key, name: info.plan.name, flags: new Set(info.plan.flags) } : null,
   };
 }
 
-export async function loadPlatformContext(
-  token: string | undefined | null,
-  meta?: RequestMeta,
-): Promise<PlatformContext | null> {
-  const session = await findSession(token, "PLATFORM");
-  if (!session || !session.user.platformRole) return null;
+export async function loadPlatformContext(token: string | undefined | null, meta?: RequestMeta): Promise<PlatformContext | null> {
+  if (!token) return null;
+  const profile = await orNull(() => backend.get<AdminProfile>("/api/v1/admin/me"));
+  if (!profile) return null;
   return {
     kind: "platform",
-    sessionId: session.id,
-    user: {
-      id: session.user.id,
-      name: session.user.name,
-      email: session.user.email,
-      avatarUrl: session.user.avatarUrl,
-      platformRole: session.user.platformRole,
-    },
-    actor: { userId: session.user.id, name: session.user.name, role: "Super Admin" },
+    user: { id: profile.id, name: profile.name, email: profile.email, avatarUrl: null, platformRole: profile.platformRole },
+    actor: { userId: profile.id, name: profile.name, role: "Super Admin" },
     meta,
   };
 }
 
-/** System context for trusted background flows (webhooks, jobs, seed). */
 export function systemContext(restaurantId: string, actorName = "System"): ServiceContext {
   return {
     restaurantId,
