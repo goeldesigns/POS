@@ -86,7 +86,7 @@ export interface PosOrder {
   externalRef: string | null;
   total: number;
   paidTotal: number;
-  customer: { id: string; name: string; phone: string; loyaltyBalance: number } | null;
+  customer: { id: string; name: string; phone: string | null; loyaltyBalance: number } | null;
   discount: { type: "PERCENT" | "FLAT"; value: number; reason: string | null } | null;
   couponCode: string | null;
   redeemPoints: number;
@@ -104,5 +104,5 @@ export async function getCouponByCode(_ctx: ServiceContext, code: string) {
 }
 
 export async function getCustomerForPos(_ctx: ServiceContext, id: string) {
-  return backend.get<{ id: string; name: string; phone: string; loyaltyBalance: number }>(`/api/v1/pos/customers/${id}`).catch(() => null);
+  return backend.get<{ id: string; name: string; phone: string | null; loyaltyBalance: number }>(`/api/v1/pos/customers/${id}`).catch(() => null);
 }

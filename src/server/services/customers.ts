@@ -9,7 +9,7 @@ const dateOnly = (value: Date | null) => (value ? value.toISOString().slice(0, 1
 interface CustomerRowWire {
   id: string;
   name: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   tags: string[];
   totalOrders: number;
@@ -38,7 +38,7 @@ interface ProfileWire {
   customer: {
     id: string;
     name: string;
-    phone: string;
+    phone: string | null;
     email: string | null;
     birthday: string | null;
     anniversary: string | null;
@@ -83,7 +83,7 @@ export async function getCustomerProfile(_ctx: ServiceContext, id: string) {
 export interface CustomerInput {
   id?: string;
   name: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   birthday: Date | null;
   anniversary: Date | null;
@@ -110,7 +110,7 @@ export async function addCustomerNote(_ctx: ServiceContext, customerId: string, 
 
 export async function importCustomers(
   _ctx: ServiceContext,
-  rows: { name: string; phone: string; email?: string | null; birthday?: string | null; tags?: string | null }[],
+  rows: { name: string; phone?: string | null; email?: string | null; birthday?: string | null; tags?: string | null }[],
 ) {
   return backend.post<{ created: number; updated: number; errors: { row: number; message: string }[]; skipped: number }>("/api/v1/customers/import", { rows });
 }

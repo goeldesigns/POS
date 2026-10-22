@@ -25,7 +25,7 @@ export interface CartLine {
 export interface PosCustomer {
   id: string;
   name: string;
-  phone: string;
+  phone: string | null;
   loyaltyBalance: number;
 }
 

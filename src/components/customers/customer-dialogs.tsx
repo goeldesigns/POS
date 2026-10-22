@@ -19,7 +19,7 @@ import { adjustPointsAction, importCustomersAction, saveCustomerAction } from "@
 export interface CustomerFormValue {
   id: string;
   name: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   birthday: string | null;
   anniversary?: string | null;
@@ -37,7 +37,7 @@ export function CustomerDialog({ open, onOpenChange, value, onSaved }: { open: b
         ? {
             id: value.id,
             name: value.name,
-            phone: value.phone,
+            phone: value.phone ?? "",
             email: value.email ?? "",
             birthday: toDateInputValue(value.birthday),
             anniversary: toDateInputValue(value.anniversary ?? null),
@@ -64,7 +64,7 @@ export function CustomerDialog({ open, onOpenChange, value, onSaved }: { open: b
           <DialogBody className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField control={form.control} name="name" label="Full name" required autoFocus />
-              <TextField control={form.control} name="phone" label="Phone" required inputMode="tel" />
+              <TextField control={form.control} name="phone" label="Phone" optional inputMode="tel" />
               <TextField control={form.control} name="email" label="Email" optional type="email" />
               <TextField control={form.control} name="tags" label="Tags" optional placeholder="VIP, Regular, Corporate" description="Comma separated" />
               <TextField control={form.control} name="birthday" label="Birthday" optional type="date" description="Used for birthday loyalty bonus" />
@@ -90,7 +90,7 @@ export function CustomerDialog({ open, onOpenChange, value, onSaved }: { open: b
 }
 
 export function ImportCustomersDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const [rows, setRows] = React.useState<{ name: string; phone: string; email?: string; birthday?: string; tags?: string }[]>([]);
+  const [rows, setRows] = React.useState<{ name: string; phone?: string; email?: string; birthday?: string; tags?: string }[]>([]);
   const [fileName, setFileName] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<{ created: number; updated: number; skipped: number; errors: { row: number; message: string }[] } | null>(null);
   const router = useRouter();

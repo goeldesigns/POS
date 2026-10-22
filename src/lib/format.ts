@@ -139,7 +139,8 @@ export function formatQuantity(value: number, unit?: string): string {
   return unit ? `${text} ${unit.toLowerCase()}` : text;
 }
 
-export function formatPhone(phone: string): string {
+export function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return "—";
   const digits = phone.replace(/\D/g, "");
   if (digits.length === 10) return `${digits.slice(0, 5)} ${digits.slice(5)}`;
   if (digits.length === 12 && digits.startsWith("91")) return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;

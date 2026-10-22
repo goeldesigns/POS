@@ -339,11 +339,11 @@ export function CustomerPicker({
         {creating ? (
           <>
             <DialogBody className="space-y-4">
-              <Field label="Phone" required error={errors.phone}>
-                <Input autoFocus prefix={<Phone />} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="98450 12345" inputMode="tel" />
+              <Field label="Phone" optional error={errors.phone}>
+                <Input prefix={<Phone />} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="98450 12345" inputMode="tel" />
               </Field>
               <Field label="Name" required error={errors.name}>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <Input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </Field>
               <Field label="Email" optional error={errors.email} description="Used for e-receipts.">
                 <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
@@ -353,7 +353,7 @@ export function CustomerPicker({
               <Button variant="outline" onClick={() => setCreating(false)}>
                 Back to search
               </Button>
-              <Button loading={create.pending} onClick={() => create.execute({ name: form.name, phone: form.phone, email: form.email || null })}>
+              <Button loading={create.pending} onClick={() => create.execute({ name: form.name, phone: form.phone || null, email: form.email || null })}>
                 Save & select
               </Button>
             </DialogFooter>

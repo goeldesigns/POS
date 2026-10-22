@@ -61,7 +61,7 @@ export const previewCouponAction = restaurantAction(
 
 export const quickCreateCustomerAction = restaurantAction(
   { permission: ["customers.create", "pos.create_order"], schema: customerSchema.pick({ name: true, phone: true, email: true }) },
-  async (input) => backend.post<{ id: string; name: string; phone: string; loyaltyBalance: number; existed: boolean }>("/api/v1/pos/customers", input),
+  async (input) => backend.post<{ id: string; name: string; phone: string | null; loyaltyBalance: number; existed: boolean }>("/api/v1/pos/customers", input),
 );
 
 export const sendReceiptAction = restaurantAction(

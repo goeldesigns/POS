@@ -10,6 +10,7 @@ import {
   optionalMoneyField,
   optionalNumberField,
   optionalString,
+  optionalPhone,
   phoneField,
   requiredString,
 } from "./helpers";
@@ -37,7 +38,7 @@ export const orderDraftSchema = z.object({
   customer: z
     .object({
       name: requiredString("Customer name", 80),
-      phone: phoneField(),
+      phone: optionalPhone(),
       email: optionalEmail(),
     })
     .nullable()
@@ -173,7 +174,7 @@ export const assignReservationTableSchema = z.object({
 export const customerSchema = z.object({
   id: z.string().optional(),
   name: requiredString("Name", 80),
-  phone: phoneField(),
+  phone: optionalPhone(),
   email: optionalEmail(),
   birthday: optionalDateOnly(),
   anniversary: optionalDateOnly(),
@@ -193,7 +194,7 @@ export const customerImportSchema = z.object({
     .array(
       z.object({
         name: z.string(),
-        phone: z.string(),
+        phone: z.string().optional().nullable(),
         email: z.string().optional().nullable(),
         birthday: z.string().optional().nullable(),
         tags: z.string().optional().nullable(),

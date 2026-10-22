@@ -17,7 +17,7 @@ export interface OrderDraftInput {
   type: OrderType;
   tableId?: string | null;
   customerId?: string | null;
-  customer?: { name: string; phone: string; email?: string | null } | null;
+  customer?: { name: string; phone: string | null; email?: string | null } | null;
   guests?: number | null;
   notes?: string | null;
   deliveryAddress?: string | null;
@@ -118,7 +118,7 @@ export interface OrderDetail {
   updatedAt: string;
   createdBy: string | null;
   table: { id: string; name: string } | null;
-  customer: { id: string; name: string; phone: string; email: string | null } | null;
+  customer: { id: string; name: string; phone: string | null; email: string | null } | null;
   items: {
     id: string;
     productId: string | null;

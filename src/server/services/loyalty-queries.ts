@@ -15,7 +15,7 @@ interface Overview {
     birthdayBonus: number;
   };
   stats: { members: number; outstanding: number; liability: number; earnedMonth: number; redeemedMonth: number; redemptionRate: number };
-  top: { id: string; name: string; phone: string; balance: number; lifetimeEarned: number; orders: number; lastVisitAt: string | null }[];
+  top: { id: string; name: string; phone: string | null; balance: number; lifetimeEarned: number; orders: number; lastVisitAt: string | null }[];
   total: number;
   transactions: {
     id: string;

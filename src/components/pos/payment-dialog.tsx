@@ -63,7 +63,7 @@ export function PaymentDialog({
   accept: { cash: boolean; card: boolean; upi: boolean };
   upiId: string | null;
   restaurantName: string;
-  customer: { name: string; phone: string; email?: string | null } | null;
+  customer: { name: string; phone: string | null; email?: string | null } | null;
   onConfirm: (payments: PaymentLine[]) => Promise<PaymentResult | null>;
   onDone: () => void;
   /** Label of the button that closes the success view ("Start new order" at the POS). */
