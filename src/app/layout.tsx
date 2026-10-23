@@ -2,14 +2,20 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { BRAND } from "@/config/brand";
+import { SITE } from "@/config/site";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE.url),
   title: { default: `${BRAND.name} — ${BRAND.tagline}`, template: `%s · ${BRAND.name}` },
   description: "Point of sale, kitchen, inventory and back office for restaurants.",
+  applicationName: BRAND.name,
+  // The signed-in app, auth and console pages stay out of search results; the landing page opts back in.
   robots: { index: false, follow: false },
+  openGraph: { type: "website", siteName: BRAND.name, locale: SITE.locale },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {

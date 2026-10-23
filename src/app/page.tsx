@@ -4,6 +4,7 @@ import { BackOfficeGrid } from "@/components/landing/bento";
 import { FinalCta, SiteFooter } from "@/components/landing/closing";
 import { DemoScheduler } from "@/components/landing/demo-scheduler";
 import { Faq } from "@/components/landing/faq";
+import { FAQS } from "@/components/landing/faq-data";
 import { FeatureTabs, type FeatureTab } from "@/components/landing/feature-tabs";
 import { Hero } from "@/components/landing/hero";
 import "@/components/landing/landing.css";
@@ -16,6 +17,7 @@ import { FactsBand, HowItWorks, SectionHeading, Security } from "@/components/la
 import { SignInProvider, type DemoAccount } from "@/components/landing/signin";
 import { SiteNav } from "@/components/landing/site-nav";
 import { BRAND } from "@/config/brand";
+import { SITE } from "@/config/site";
 import { DEMO } from "@/lib/demo";
 import { formatNumber } from "@/lib/format";
 import { CORE_MODULES, MODULE_CATALOG, PLAN_FLAGS, isModuleKey, type ModuleKey, type PlanFlag } from "@/lib/permissions/catalog";
@@ -31,12 +33,78 @@ import tablesShot from "../../public/landing/tables.webp";
 // Rendered per request: plans, prices and demo slots come live from the database.
 export const dynamic = "force-dynamic";
 
+const PAGE_TITLE = `${BRAND.name} — Restaurant POS for billing, kitchen, stock & reports`;
+const PAGE_DESCRIPTION =
+  "Tabla is a restaurant point of sale for India: fast billing with UPI and split payments, KOTs by kitchen station, recipe-based inventory, GST-ready reports and role-based staff access.";
+
 export const metadata: Metadata = {
-  title: { absolute: `${BRAND.name} — Restaurant POS for billing, kitchen, stock & reports` },
-  description:
-    "Tabla is a restaurant point of sale for India: fast billing with UPI and split payments, KOTs by kitchen station, recipe-based inventory, GST-ready reports and role-based staff access.",
+  title: { absolute: PAGE_TITLE },
+  description: PAGE_DESCRIPTION,
+  keywords: [...SITE.keywords],
+  alternates: { canonical: "/" },
   robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    siteName: BRAND.name,
+    locale: SITE.locale,
+    images: [{ url: SITE.ogImage, ...SITE.ogImageSize, alt: "Tabla restaurant POS: menu, running order and totals on one screen" }],
+  },
+  twitter: { card: "summary_large_image", title: PAGE_TITLE, description: PAGE_DESCRIPTION, images: [SITE.ogImage] },
 };
+
+function structuredData(plans: PublicPlan[]) {
+  const priced = plans.filter((p) => p.priceMonthly > 0);
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${SITE.url}/#organization`,
+        name: BRAND.name,
+        url: SITE.url,
+        logo: `${SITE.url}/icon.svg`,
+        email: BRAND.supportEmail,
+        contactPoint: { "@type": "ContactPoint", telephone: BRAND.supportPhone, contactType: "sales", areaServed: "IN", availableLanguage: "English" },
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${SITE.url}/#website`,
+        url: SITE.url,
+        name: BRAND.name,
+        publisher: { "@id": `${SITE.url}/#organization` },
+        inLanguage: "en-IN",
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": `${SITE.url}/#software`,
+        name: `${BRAND.name} restaurant POS`,
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web browser",
+        description: PAGE_DESCRIPTION,
+        url: SITE.url,
+        publisher: { "@id": `${SITE.url}/#organization` },
+        ...(priced.length
+          ? {
+              offers: priced.map((p) => ({
+                "@type": "Offer",
+                name: p.name,
+                price: (p.priceMonthly / 100).toFixed(2),
+                priceCurrency: "INR",
+                url: `${SITE.url}/#pricing`,
+              })),
+            }
+          : {}),
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: FAQS.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+      },
+    ],
+  };
+}
 
 const FEATURES: FeatureTab[] = [
   {
@@ -181,6 +249,10 @@ export default async function LandingPage() {
 
   return (
     <div className="lp-root overflow-x-clip bg-surface">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData(publicPlans)).replace(/</g, "\\u003c") }}
+      />
       <SignInProvider demoAccounts={showDemoAccounts ? DEMO_ACCOUNTS : undefined} signupEnabled={settings.allowSelfSignup}>
         <SiteNav />
         <main>
