@@ -8,6 +8,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Production defaults, baked in at build time so a deploy works without
+  // dashboard variables. A local .env or a host variable still overrides them.
+  env: {
+    BACKEND_URL: process.env.BACKEND_URL ?? "https://api.tablapos.com",
+    APP_URL: process.env.APP_URL ?? "https://tablapos.com",
+  },
   poweredByHeader: false,
   typedRoutes: false,
   // Server action arguments include passwords and payment details — never
